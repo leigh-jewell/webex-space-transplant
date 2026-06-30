@@ -95,27 +95,27 @@ If you run the script without membership flags, it also offers this as an intera
 1. `Audit your spaces against a master CSV list?`
 2. `Enter master CSV path [master.csv]:`
 
-### Audit and refresh `en_master.csv` space names
+### Audit and refresh `master.csv` space names
 
 Use the audit script to resolve each EURL and update `space_name` when it differs from the title returned by EURL:
 
 ```bash
-python3 audit_en_master.py --input en_master.csv
+python3 audit_master.py --input master.csv
 ```
 
-By default this updates `en_master.csv` in place and creates `en_master.csv.bak`.
+By default this updates `master.csv` in place and creates `master.csv.bak`.
 
 To write to a separate output file:
 
 ```bash
-python3 audit_en_master.py --input en_master.csv --output en_master_audited.csv
+python3 audit_master.py --input master.csv --output master_audited.csv
 ```
 
 For rows that use `webexteams://im?space=...`, provide a Webex token:
 
 ```bash
 export WEBEX_ACCESS_TOKEN="your_token_here"
-python3 audit_en_master.py --input en_master.csv
+python3 audit_master.py --input master.csv
 ```
 
 ## Output
