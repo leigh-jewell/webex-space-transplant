@@ -5,7 +5,7 @@ Small CLI script that uses the [Webex Developer API](https://developer.webex.com
 1. Fetch all spaces you are a member of
 2. Search space titles for `eurl.io` / `https://eurl.io...`
 3. Print matches in a two-column table (`Space Name`, `URL`)
-4. Save the same matches to `{username}_webex_space_transplant.csv`
+4. Save the same matches to `webex_space_transplant.csv`
 5. Optionally compare your room membership to a master list and export missing spaces
 
 ## Requirements
@@ -57,9 +57,9 @@ Optional arguments:
 python3 webex_space_transplant.py --join-from-csv ./my_spaces.csv --join-email your.name@company.com
 ```
 
-- `--join-from-csv` with no value defaults to `{username}_webex_missing_spaces.csv`
+- `--join-from-csv` with no value defaults to `webex_missing_spaces.csv`
 - Supported link format for this mode: `https://eurl.io/#...` (or `https://eurl.io/<shortid>`)
-- Results are written to `{username}_webex_join_results.csv` with:
+- Results are written to `webex_join_results.csv` with:
   - `space_name`
   - `eurl`
   - `shortid`
@@ -68,7 +68,7 @@ python3 webex_space_transplant.py --join-from-csv ./my_spaces.csv --join-email y
 
 ### Check against a master spaces list
 
-Use this mode to compare your current memberships with a known list (default filename: `en_master_spaces.csv`).
+Use this mode to compare your current memberships with a known list (default filename: `master.csv`).
 
 ```bash
 python3 webex_space_transplant.py --check-master-membership
@@ -85,7 +85,7 @@ Master CSV headers:
 - `space_name` (required; aliases supported: `space`, `title`, `room_name`)
 - `eurl` (required; alias supported: `url`)
 
-This mode prints spaces you are **not** a member of and writes `{username}_webex_missing_spaces.csv` with:
+This mode prints spaces you are **not** a member of and writes `webex_missing_spaces.csv` with:
 
 - `space_name`
 - `eurl`
@@ -93,7 +93,7 @@ This mode prints spaces you are **not** a member of and writes `{username}_webex
 If you run the script without membership flags, it also offers this as an interactive option:
 
 1. `Audit your spaces against a master CSV list?`
-2. `Enter master CSV path [en_master_spaces.csv]:`
+2. `Enter master CSV path [master.csv]:`
 
 ### Audit and refresh `en_master.csv` space names
 
@@ -123,12 +123,11 @@ python3 audit_en_master.py --input en_master.csv
 - **Terminal output:** two-column table of matching spaces (`Space Name`, `URL`)
   - Space names are truncated with `…` when needed to fit terminal width.
 - **Run summary:** totals for spaces scanned, matched, EURL matches, and Ask rooms.
-- **CSV output:** `{username}_webex_space_transplant.csv` with headers:
+- **CSV output:** `webex_space_transplant.csv` with headers:
   - `space_name`
   - `url`
   - `space_link`
 
-CSV filename is prefixed with your username from Webex profile (for example, `alex_webex_space_transplant.csv`).
 
 `space_link` is written as a Webex deep link in the format `webexteams://im?space=<encoded_room_id>`.
 

@@ -19,14 +19,15 @@ API_BASE = "https://webexapis.com/v1"
 ROOMS_ENDPOINT = f"{API_BASE}/rooms?max=100"
 VERIFY_TOKEN_ENDPOINT = f"{API_BASE}/people/me"
 TARGET_DOMAIN = "eurl.io"
-URL_PATTERN = re.compile(r"https?://(?:www\.)?eurl\.io[^\s)]*", re.IGNORECASE)
+URL_PATTERN = re.compile(r"https?://(?:www\.)?eurl\.io[^\s)(]*", re.IGNORECASE)
 EURL_TOKEN_PATTERN = re.compile(
-    r"(?:https?://)?(?:www\.)?eurl\.io[^\s)]*", re.IGNORECASE
+    r"(?:https?://)?(?:www\.)?eurl\.io[^\s)(]*", re.IGNORECASE
 )
+EURL_SHORTID_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
 OUTPUT_CSV = "webex_space_transplant.csv"
 MISSING_MEMBERSHIP_OUTPUT_CSV = "webex_missing_spaces.csv"
 JOIN_RESULTS_OUTPUT_CSV = "webex_join_results.csv"
-MASTER_SPACES_CSV = "en_master_spaces.csv"
+MASTER_SPACES_CSV = "master.csv"
 SPACE_LINK_BASE = "webexteams://im?space="
 EURL_SHORTID_ENDPOINT = "https://eurl.io/api/shortid"
 DEBUG_LOG_PREFIX = "webex_space_transplant_debug"
@@ -160,6 +161,7 @@ def clean_space_name(title: str) -> str:
     cleaned = URL_PATTERN.sub("", title)
     cleaned = EURL_TOKEN_PATTERN.sub("", cleaned)
     cleaned = re.sub(r"\(\s*\)", "", cleaned)
+    cleaned = re.sub(r"\([^)]*$", "", cleaned)  # remove unclosed trailing (fragment
     cleaned = re.sub(r"\s{2,}", " ", cleaned)
     return cleaned.strip(" -:\t")
 
@@ -204,21 +206,6 @@ def masked_input(prompt: str) -> str:
     return "".join(chars)
 
 
-def get_username_slug(profile: Dict) -> str:
-    emails = profile.get("emails", [])
-    if isinstance(emails, list) and emails:
-        first_email = str(emails[0]).strip()
-        if first_email and "@" in first_email:
-            return re.sub(r"[^a-zA-Z0-9_-]", "_", first_email.split("@", 1)[0]).lower()
-        if first_email:
-            return re.sub(r"[^a-zA-Z0-9_-]", "_", first_email).lower()
-
-    display_name = str(profile.get("displayName", "")).strip()
-    if display_name:
-        return re.sub(r"[^a-zA-Z0-9_-]", "_", display_name).lower()
-    return "user"
-
-
 def get_primary_email(profile: Dict) -> Optional[str]:
     emails = profile.get("emails", [])
     if isinstance(emails, list) and emails:
@@ -255,7 +242,7 @@ def validate_token(token: str) -> Optional[Dict]:
         return None
 
 
-def prompt_for_valid_token() -> Tuple[str, str, Dict]:
+def prompt_for_valid_token() -> Tuple[str, Dict]:
     env_token = os.getenv("WEBEX_ACCESS_TOKEN", "").strip()
     if env_token:
         LOGGER.debug("Using token from WEBEX_ACCESS_TOKEN environment variable")
@@ -266,11 +253,9 @@ def prompt_for_valid_token() -> Tuple[str, str, Dict]:
                 file=sys.stderr,
             )
             raise SystemExit(1)
-        username_slug = get_username_slug(profile)
-        LOGGER.debug("Using username slug from environment token: %s", username_slug)
         print("Using token from WEBEX_ACCESS_TOKEN.")
         print("Token verified.", flush=True)
-        return env_token, username_slug, profile
+        return env_token, profile
 
     while True:
         token = masked_input("Enter your Webex Developer API token: ").strip()
@@ -280,10 +265,8 @@ def prompt_for_valid_token() -> Tuple[str, str, Dict]:
             continue
         profile = validate_token(token)
         if profile is not None:
-            username_slug = get_username_slug(profile)
-            LOGGER.debug("Using username slug: %s", username_slug)
             print("Token verified.", flush=True)
-            return token, username_slug, profile
+            return token, profile
 
 
 def prompt_yes_no(prompt: str, default: bool = False) -> bool:
@@ -439,11 +422,10 @@ def resolve_header_name(fieldnames: List[str], candidates: List[str]) -> Optiona
 def extract_shortid_from_eurl(link: str) -> Optional[str]:
     parsed = urlparse(link.strip())
     if parsed.scheme in {"http", "https"} and parsed.netloc.lower().endswith("eurl.io"):
-        if parsed.fragment:
-            return parsed.fragment.strip()
-        path = parsed.path.strip("/")
-        if path:
-            return path
+        candidate = parsed.fragment.strip() or parsed.path.strip("/")
+        match = EURL_SHORTID_PATTERN.match(candidate)
+        if match:
+            return match.group(0)
     return None
 
 
@@ -767,13 +749,13 @@ def main() -> int:
     print("Get a bearer token from: https://developer.webex.com/")
     if debug_log_path:
         print(f"Debug log: {debug_log_path}")
-    token, username_slug, profile = prompt_for_valid_token()
+    token, profile = prompt_for_valid_token()
     if args.check_master_membership:
-        output_csv = f"{username_slug}_{MISSING_MEMBERSHIP_OUTPUT_CSV}"
+        output_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
         LOGGER.debug("Membership output CSV path: %s", output_csv)
         return run_master_membership_mode(token, args.master_csv, output_csv)
     if args.join_from_csv is not None:
-        default_join_csv = f"{username_slug}_{MISSING_MEMBERSHIP_OUTPUT_CSV}"
+        default_join_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
         join_csv_path = args.join_from_csv or default_join_csv
         email = args.join_email or get_primary_email(profile)
         if not email:
@@ -781,12 +763,12 @@ def main() -> int:
         if not email:
             print("Join email is required.", file=sys.stderr)
             return 1
-        output_csv = f"{username_slug}_{JOIN_RESULTS_OUTPUT_CSV}"
+        output_csv = JOIN_RESULTS_OUTPUT_CSV
         return run_join_from_csv_mode(join_csv_path, email, output_csv)
 
     run_join_mode = prompt_yes_no("Join spaces from an EURL CSV list?")
     if run_join_mode:
-        default_join_csv = f"{username_slug}_{MISSING_MEMBERSHIP_OUTPUT_CSV}"
+        default_join_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
         join_csv_path = prompt_input_with_default("Enter join CSV path", default_join_csv)
         email_default = get_primary_email(profile) or ""
         email = (
@@ -797,7 +779,7 @@ def main() -> int:
         if not email:
             print("Join email is required.", file=sys.stderr)
             return 1
-        output_csv = f"{username_slug}_{JOIN_RESULTS_OUTPUT_CSV}"
+        output_csv = JOIN_RESULTS_OUTPUT_CSV
         return run_join_from_csv_mode(join_csv_path, email, output_csv)
 
     run_membership_audit = prompt_yes_no(
@@ -805,7 +787,7 @@ def main() -> int:
     )
     if run_membership_audit:
         master_csv_path = prompt_master_csv_path(args.master_csv)
-        output_csv = f"{username_slug}_{MISSING_MEMBERSHIP_OUTPUT_CSV}"
+        output_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
         LOGGER.debug(
             "Interactive membership audit selected; CSV=%s output=%s",
             master_csv_path,
@@ -813,7 +795,7 @@ def main() -> int:
         )
         return run_master_membership_mode(token, master_csv_path, output_csv)
 
-    output_csv = f"{username_slug}_{OUTPUT_CSV}"
+    output_csv = OUTPUT_CSV
     LOGGER.debug("Output CSV path: %s", output_csv)
     include_ask_spaces = prompt_yes_no(
         'Include spaces starting with "Ask" even without eurl.io?'

@@ -25,3 +25,5 @@ env/
 # Local tool outputs
 *.log
 *.csv
+*.csv.bak
+*.bak

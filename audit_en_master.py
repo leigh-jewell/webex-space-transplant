@@ -3,6 +3,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import shutil
 import sys
 from dataclasses import dataclass
@@ -15,6 +16,7 @@ EURL_API = "https://eurl.io/api/shortid"
 WEBEX_API_BASE = "https://webexapis.com/v1"
 DEFAULT_INPUT = "en_master.csv"
 DEFAULT_TIMEOUT_SECONDS = 20
+EURL_SHORTID_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
 
 
 @dataclass
@@ -49,6 +51,11 @@ def parse_args() -> argparse.Namespace:
         "--token",
         default=os.getenv("WEBEX_ACCESS_TOKEN", "").strip(),
         help="Webex token for non-eurl links like webexteams://im?space=<id> (defaults to WEBEX_ACCESS_TOKEN).",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Resolve EURLs and print proposed changes without writing the CSV.",
     )
     return parser.parse_args()
 
@@ -96,11 +103,10 @@ def fetch_json(url: str, token: str = "") -> Dict:
 def extract_shortid(link: str) -> Optional[str]:
     parsed = urlparse(link.strip())
     if parsed.scheme in {"http", "https"} and parsed.netloc.lower().endswith("eurl.io"):
-        if parsed.fragment:
-            return parsed.fragment.strip()
-        path_value = parsed.path.strip("/")
-        if path_value:
-            return path_value
+        candidate = parsed.fragment.strip() or parsed.path.strip("/")
+        match = EURL_SHORTID_PATTERN.match(candidate)
+        if match:
+            return match.group(0)
     return None
 
 
@@ -265,6 +271,11 @@ def main() -> int:
                 )
             )
     print()
+
+    if args.dry_run:
+        print("Dry run — no files written.")
+        print_results(results)
+        return 0
 
     backup_path = ""
     if not args.output and not args.no_backup:
