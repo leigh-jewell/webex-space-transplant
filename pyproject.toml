@@ -1,0 +1,7 @@
+[project]
+name = "webex-space-transplant"
+version = "0.1.0"
+description = "CLI for exporting and reviewing Webex space links"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
