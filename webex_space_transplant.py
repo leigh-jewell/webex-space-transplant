@@ -789,18 +789,12 @@ def main() -> int:
     args = parse_args()
     debug_log_path = configure_logging(args.debug)
     print_banner()
-    print("Get a bearer token from: https://developer.webex.com/")
     if debug_log_path:
         print(f"Debug log: {debug_log_path}")
-    token, profile = prompt_for_valid_token()
-    if args.check_master_membership:
-        output_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
-        LOGGER.debug("Membership output CSV path: %s", output_csv)
-        return run_master_membership_mode(token, args.master_csv, output_csv)
     if args.join_from_csv is not None:
         default_join_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
         join_csv_path = args.join_from_csv or default_join_csv
-        email = args.join_email or get_primary_email(profile)
+        email = (args.join_email or "").strip()
         if not email:
             email = input("Enter the email to use for EURL joins: ").strip()
         if not email:
@@ -813,7 +807,7 @@ def main() -> int:
     if run_join_mode:
         default_join_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
         join_csv_path = prompt_input_with_default("Enter join CSV path", default_join_csv)
-        email_default = get_primary_email(profile) or ""
+        email_default = (args.join_email or "").strip()
         email = (
             prompt_input_with_default("Enter the email to use for EURL joins", email_default)
             if email_default
@@ -824,6 +818,13 @@ def main() -> int:
             return 1
         output_csv = JOIN_RESULTS_OUTPUT_CSV
         return run_join_from_csv_mode(join_csv_path, email, output_csv)
+
+    print("Get a bearer token from: https://developer.webex.com/")
+    token, profile = prompt_for_valid_token()
+    if args.check_master_membership:
+        output_csv = MISSING_MEMBERSHIP_OUTPUT_CSV
+        LOGGER.debug("Membership output CSV path: %s", output_csv)
+        return run_master_membership_mode(token, args.master_csv, output_csv)
 
     run_membership_audit = prompt_yes_no(
         "Audit your spaces against a master CSV list?"

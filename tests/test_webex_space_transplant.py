@@ -54,6 +54,74 @@ class WebexSpaceTransplantTests(unittest.TestCase):
         )
         self.assertIsNone(guidance)
 
+    def test_main_join_from_csv_does_not_require_token(self):
+        args = SimpleNamespace(
+            debug=False,
+            check_master_membership=False,
+            master_csv=webex_space_transplant.MASTER_SPACES_CSV,
+            join_from_csv="",
+            join_email="person@example.com",
+        )
+
+        with patch.object(
+            webex_space_transplant, "parse_args", return_value=args
+        ), patch.object(
+            webex_space_transplant, "configure_logging", return_value=None
+        ), patch.object(
+            webex_space_transplant, "print_banner"
+        ), patch.object(
+            webex_space_transplant, "prompt_for_valid_token"
+        ) as prompt_for_valid_token, patch.object(
+            webex_space_transplant, "run_join_from_csv_mode", return_value=0
+        ) as run_join_from_csv_mode:
+            result = webex_space_transplant.main()
+
+        self.assertEqual(result, 0)
+        self.assertFalse(prompt_for_valid_token.called)
+        run_join_from_csv_mode.assert_called_once_with(
+            webex_space_transplant.MISSING_MEMBERSHIP_OUTPUT_CSV,
+            "person@example.com",
+            webex_space_transplant.JOIN_RESULTS_OUTPUT_CSV,
+        )
+
+    def test_main_interactive_join_does_not_require_token(self):
+        args = SimpleNamespace(
+            debug=False,
+            check_master_membership=False,
+            master_csv=webex_space_transplant.MASTER_SPACES_CSV,
+            join_from_csv=None,
+            join_email=None,
+        )
+
+        with patch.object(
+            webex_space_transplant, "parse_args", return_value=args
+        ), patch.object(
+            webex_space_transplant, "configure_logging", return_value=None
+        ), patch.object(
+            webex_space_transplant, "print_banner"
+        ), patch.object(
+            webex_space_transplant, "prompt_yes_no", return_value=True
+        ), patch.object(
+            webex_space_transplant,
+            "prompt_input_with_default",
+            return_value="my_join_list.csv",
+        ), patch(
+            "builtins.input", return_value="person@example.com"
+        ), patch.object(
+            webex_space_transplant, "prompt_for_valid_token"
+        ) as prompt_for_valid_token, patch.object(
+            webex_space_transplant, "run_join_from_csv_mode", return_value=0
+        ) as run_join_from_csv_mode:
+            result = webex_space_transplant.main()
+
+        self.assertEqual(result, 0)
+        self.assertFalse(prompt_for_valid_token.called)
+        run_join_from_csv_mode.assert_called_once_with(
+            "my_join_list.csv",
+            "person@example.com",
+            webex_space_transplant.JOIN_RESULTS_OUTPUT_CSV,
+        )
+
 
 class AuditEnMasterTests(unittest.TestCase):
     def test_extract_shortid_handles_fragment_artifact(self):
