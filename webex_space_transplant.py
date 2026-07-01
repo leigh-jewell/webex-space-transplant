@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import shutil
+import ssl
 import sys
 import termios
 import tty
@@ -215,7 +216,46 @@ def get_primary_email(profile: Dict) -> Optional[str]:
     return None
 
 
+def get_ssl_cert_guidance(err: URLError) -> Optional[str]:
+    reason = getattr(err, "reason", None)
+    reason_text = str(reason or err)
+    is_cert_error = isinstance(reason, ssl.SSLCertVerificationError) or (
+        "CERTIFICATE_VERIFY_FAILED" in reason_text
+    )
+    if not is_cert_error:
+        return None
+
+    verify_paths = ssl.get_default_verify_paths()
+    env_cert_file = os.getenv("SSL_CERT_FILE")
+    env_cert_dir = os.getenv("SSL_CERT_DIR")
+
+    guidance = [
+        "TLS certificate verification failed while verifying your Webex token.",
+        "Python could not validate the server certificate chain.",
+    ]
+
+    if not verify_paths.cafile and not verify_paths.capath and not env_cert_file and not env_cert_dir:
+        guidance.append(
+            "No CA truststore is configured for this Python runtime (cafile/capath are unset)."
+        )
+
+    guidance.extend(
+        [
+            "Fix options:",
+            "  1. Set SSL_CERT_FILE to a valid CA bundle path. e.g. export SSL_CERT_FILE=/etc/ssl/cert.pem",
+            "  2. Optionally set SSL_CERT_DIR to a trusted cert directory.",
+            "  3. Install/trust your corporate proxy root CA in Python truststore.",
+            f"Current SSL_CERT_FILE: {env_cert_file or '(unset)'}",
+            f"Current SSL_CERT_DIR: {env_cert_dir or '(unset)'}",
+            f"Default cafile: {verify_paths.cafile or '(none)'}",
+            f"Default capath: {verify_paths.capath or '(none)'}",
+        ]
+    )
+    return "\n".join(guidance)
+
+
 def validate_token(token: str) -> Optional[Dict]:
+
     try:
         profile, _ = get_json(VERIFY_TOKEN_ENDPOINT, token)
         LOGGER.debug("Token validation succeeded")
@@ -235,6 +275,9 @@ def validate_token(token: str) -> Optional[Dict]:
     except URLError as err:
         LOGGER.debug("Token validation failed with network error: %s", err)
         print(f"Network error while verifying token: {err}", file=sys.stderr)
+        cert_guidance = get_ssl_cert_guidance(err)
+        if cert_guidance:
+            print(cert_guidance, file=sys.stderr)
         return None
     except json.JSONDecodeError as err:
         LOGGER.debug("Token validation failed with JSON decode error: %s", err)
@@ -249,7 +292,7 @@ def prompt_for_valid_token() -> Tuple[str, Dict]:
         profile = validate_token(env_token)
         if profile is None:
             print(
-                "WEBEX_ACCESS_TOKEN is set but invalid. Update the environment variable and try again.",
+                "WEBEX_ACCESS_TOKEN is set but could not be verified. Fix the error above and try again.",
                 file=sys.stderr,
             )
             raise SystemExit(1)

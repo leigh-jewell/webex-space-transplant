@@ -36,6 +36,7 @@ The script prompts for your Webex Developer API token.
 - If `WEBEX_ACCESS_TOKEN` is set, that token is used instead of prompting.
 - Token input is masked with `*` as you type.
 - Token is verified after entry; if invalid, you are prompted again.
+- If token verification fails with SSL certificate errors, configure `SSL_CERT_FILE` (and optionally `SSL_CERT_DIR`) to a valid CA truststore bundle.
 - You can choose to run an interactive EURL join flow from a CSV list.
 - You can choose to run an interactive master-membership audit, then provide a master CSV path.
 - You can choose whether to also include spaces that start with `Ask` even when no `eurl.io` URL is present.
